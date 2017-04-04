@@ -1,0 +1,4 @@
+NET,PIN,DIR
+led,1,o
+clock,2,i
+enable,3,i
