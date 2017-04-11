@@ -32,23 +32,25 @@ def get_io_data(filename):
         reader = csv.reader(csvfile, delimiter=',')
         # change this to import all io data and return
         fieldnames = reader.next()
+        for i, name in enumerate(fieldnames):
+            fieldnames[i] = fieldnames[i].upper()
+        net_index = fieldnames.index('NET')
+        pin_index = fieldnames.index('PIN')
+        dir_index = fieldnames.index('DIR')
         for row in reader:
             imported_data.append(row)
-        csvfile.close()
-
-    net_index = fieldnames.index('NET')
-    pin_index = fieldnames.index('PIN')
-    dir_index = fieldnames.index('DIR')
+    csvfile.close()
+    for row in imported_data:
+        row[net_index] = make_vhdl_legal(row[net_index])
     return imported_data, net_index, pin_index, dir_index
 
 
 def write_io_constraints(port_list, fileout, net_index, pin_index):
     physical.write('\n# Design io\n')
     for row in port_list:
-        net_name = replace_dashes(row[net_index].upper())
+        net_name = row[net_index].upper()
         pin_num = row[pin_index].upper()
-        if row[pin_index] != 'PIN':
-            fileout.write('set_property PACKAGE_PIN %s [get_ports {%s}]\n' % (pin_num, net_name))
+        fileout.write('set_property PACKAGE_PIN %s [get_ports {%s}]\n' % (pin_num, net_name))
 
 
 def write_divider(fileout, comment):
@@ -59,7 +61,6 @@ def write_divider(fileout, comment):
 
 def write_file_header(fileout, comment, proj_name, co, eng):
     import time
-    print fileout
     create_date = time.strftime('%d %b %Y %H:%M:%S %p')
     write_divider(fileout, comment)
     fileout.write('%s Company: %s\n' % (comment, co))
@@ -72,9 +73,7 @@ def write_file_header(fileout, comment, proj_name, co, eng):
     fileout.write('%s Target Devices:\n' % comment)
     fileout.write('%s Tool Versions:\n' % comment)
     fileout.write('%s Description:\n' % comment)
-    fileout.write('%s \n' % comment)
-    fileout.write('%s Dependencies:\n' % comment)
-    fileout.write('%s \n' % comment)
+    fileout.write('%s \n\n' % comment)
     fileout.write('%s Revision:\n' % comment)
     fileout.write('%s 0.01 - File generated\n' % comment)
     fileout.write('%s Additional Comments:\n' % comment)
@@ -82,24 +81,38 @@ def write_file_header(fileout, comment, proj_name, co, eng):
     write_divider(fileout, comment)
 
 
-def replace_dashes(string):
+def make_vhdl_legal(string):
     new_str = ''
-    for char in string:
-        if char == '-':
-            new_str += '_'
-        else:
+    upper_case = string.upper()
+    letters = 'ABCDEFGHIJKLMNOPQRSTUQWXYZ'
+    for i, char in enumerate(upper_case):
+        if char in letters:
             new_str += char
+        elif char == '_':
+            if i == 0:
+                print("Warning: VHDL name '%s' cannot start with '%s'" % (string, string[0]))
+            else:
+                new_str += char
+        elif char.isdigit():
+            if i == 0:
+                print("Warning: VHDL name '%s' cannot start with '%s'" % (string, string[0]))
+            else:
+                new_str += char
+        else:
+            if i == (len(string) - 1):
+                pass
+            else:
+                print("Warning: Replacing illegal character '%s' in '%s' with '_'" % (char, string))
+                new_str += '_'
     return new_str
 
 
-
-def write_entity(fileout, port_list, project, net_index, dir_index):
+def write_vhdl_entity(fileout, port_list, project, net_index, dir_index):
     port_indent = '       '
     fileout.write('entity %s_top is\n' % project)
     fileout.write('Port ( ')
     for idx, row in enumerate(port_list):
-        port = replace_dashes(row[net_index].upper())
-        print port
+        port = row[net_index].upper()
         if row[dir_index] == 'o' or row[dir_index] == 'O':
             port_dir = 'out'
         elif row[dir_index] == 'i' or row[dir_index] == 'I':
@@ -116,7 +129,7 @@ def write_entity(fileout, port_list, project, net_index, dir_index):
     write_divider(fileout, vhd_comment)
 
 
-def write_architecture(fileout, project):
+def write_vhdl_architecture(fileout, project):
     fileout.write('\narchitecture RTL of %s_top is\n' % project)
     fileout.write('  -- constant, component and signal declarations here \n')
     fileout.write('\nbegin\n')
@@ -124,17 +137,21 @@ def write_architecture(fileout, project):
     fileout.write('\nend architecture RTL;')
 
 
-def generate_top(fileout):
+def write_vhdl_libs(fileout):
     fileout.write('LIBRARY IEEE;\n')
     fileout.write('USE IEEE.STD_LOGIC_1164.ALL;\n\n')
 
 
+# get data from csv
 io_data, net, pin, dir = get_io_data(input_file)
 
+# write physical constraints file
+write_file_header(physical, vhd_comment, project_name, company, engineer)
 write_config_settings(physical, 2, 2, 16)
 write_io_constraints(io_data, physical, net, pin)
 
+# write vhdl top level
 write_file_header(top_vhd, vhd_comment, project_name, company, engineer)
-generate_top(top_vhd)
-write_entity(top_vhd, io_data, project_name, net, dir)
-write_architecture(top_vhd, project_name)
+write_vhdl_libs(top_vhd)
+write_vhdl_entity(top_vhd, io_data, project_name, net, dir)
+write_vhdl_architecture(top_vhd, project_name)
