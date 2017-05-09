@@ -19,13 +19,6 @@ pin = 1
 dir = 2
 
 
-def write_config_settings(filename, spi_width, spi_mode, spi_speed):
-    filename.write('# Configuration settings\n')
-    filename.write('set_property BITSTREAM.CONFIG.SPI_BUSWIDTH %d [current_design]\n' % spi_width)
-    filename.write('set_property CONFIG_MODE SPIx%d [current_design]\n' % spi_mode)
-    filename.write('set_property BITSTREAM.CONFIG.CONFIGRATE %d [current_design]\n' % spi_speed)
-
-
 def get_io_data(filename):
     imported_data = []
     with open(filename, 'rb') as csvfile:
@@ -43,6 +36,13 @@ def get_io_data(filename):
     for row in imported_data:
         row[net_index] = make_vhdl_legal(row[net_index])
     return imported_data, net_index, pin_index, dir_index
+
+
+def write_config_settings(filename, spi_width, spi_mode, spi_speed):
+    filename.write('# Configuration settings\n')
+    filename.write('set_property BITSTREAM.CONFIG.SPI_BUSWIDTH %d [current_design]\n' % spi_width)
+    filename.write('set_property CONFIG_MODE SPIx%d [current_design]\n' % spi_mode)
+    filename.write('set_property BITSTREAM.CONFIG.CONFIGRATE %d [current_design]\n' % spi_speed)
 
 
 def write_io_constraints(port_list, fileout, net_index, pin_index):
@@ -81,28 +81,35 @@ def write_file_header(fileout, comment, proj_name, co, eng):
     write_divider(fileout, comment)
 
 
+def remove_first_char(string):
+    return string[1:]
+
+
+def remove_last_char(string):
+    return string[:(len(string)-1)]
+
+
 def make_vhdl_legal(string):
     new_str = ''
     upper_case = string.upper()
     letters = 'ABCDEFGHIJKLMNOPQRSTUQWXYZ'
+    while upper_case[0] not in letters:
+        upper_case = remove_first_char(upper_case)
     for i, char in enumerate(upper_case):
         if char in letters:
             new_str += char
         elif char == '_':
-            if i == 0:
-                print("Warning: VHDL name '%s' cannot start with '%s'" % (string, string[0]))
+            if i == (len(upper_case) - 1):
+                pass
             else:
                 new_str += char
         elif char.isdigit():
-            if i == 0:
-                print("Warning: VHDL name '%s' cannot start with '%s'" % (string, string[0]))
-            else:
-                new_str += char
+            new_str += char
         else:
-            if i == (len(string) - 1):
+            if i == (len(upper_case) - 1):
                 pass
             else:
-                print("Warning: Replacing illegal character '%s' in '%s' with '_'" % (char, string))
+                # print("Warning: Replacing illegal character '%s' in '%s' with '_'" % (char, string))
                 new_str += '_'
     return new_str
 
